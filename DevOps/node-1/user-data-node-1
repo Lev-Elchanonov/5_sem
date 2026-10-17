@@ -1,0 +1,70 @@
+#cloud-config
+hostname: node-1
+fqdn: node-1
+preserve_hostname: false
+
+ssh_pwauth: false
+
+users:
+  - name: student
+    groups: [sudo]
+    shell: /bin/bash
+    lock_passwd: false
+    passwd: "$6$mm6SBYoyE1Ah1Sb4$24S4.Hht/NjrKvkLpMjQblF4AVPazl3Bhan/vXwkwwLpV6GXqblwEQhCh8FqbdQ1nr2u9ZcNerfu1.CQitgSc0"
+    sudo: "ALL=(ALL) ALL"
+    ssh_authorized_keys:
+      - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAH3VU0cgZPYNfD2pQgYo1IUYslkuFfzcfToJ4zba3t6 student@laptop"
+  - name: app
+    shell: /usr/sbin/nologin
+    lock_passwd: true
+
+package_update: true
+packages:
+  - ufw
+  - ca-certificates
+  - curl
+  - git
+
+write_files:
+  - path: /etc/docker/daemon.json
+    content: |
+      {
+        "log-driver": "json-file",
+        "log-opts": {"max-size": "10m", "max-file": "3"}
+      }
+  - path: /etc/apt/sources.list.d/docker.sources
+    content: |
+      Types: deb
+      URIs: https://download.docker.com/linux/debian
+      Suites: trixie
+      Components: stable
+      Signed-By: /etc/apt/keyrings/docker.asc
+
+network:
+  version: 2
+  ethernets:
+    enp0s8:
+      dhcp4: no
+      addresses:
+        - 192.168.56.11/24
+      routes:
+        - to: default
+          via: 192.168.56.1
+      nameservers:
+        addresses: [8.8.8.8, 8.8.4.4]
+
+
+runcmd:
+  - [install, -m, "0755", -d, /etc/apt/keyrings]
+  - curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod a+r /etc/apt/keyrings/docker.asc
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  - usermod -aG docker student
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw allow from 192.168.56.12
+  - ufw allow 22/tcp
+  - ufw allow 80,443/tcp
+  - ufw allow 2222,8443,5050,6443/tcp
+  - ufw --force enable
